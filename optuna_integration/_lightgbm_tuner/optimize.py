@@ -60,9 +60,13 @@ _DEFAULT_LIGHTGBM_PARAMETERS = {
 
 _logger = optuna.logging.get_logger(__name__)
 
+
 class _CustomObjectiveType(Protocol):
-    def __call__(self, preds: np.ndarray, train: "lgb.Dataset") -> tuple[np.ndarray, np.ndarray]:
+    def __call__(
+        self, preds: np.ndarray, train: "lgb.Dataset"
+    ) -> tuple[np.ndarray, np.ndarray]:
         raise NotImplementedError
+
 
 def _get_custom_objective(lgbm_kwargs: dict[str, Any]) -> _CustomObjectiveType | None:
     objective = lgbm_kwargs.get("objective")
@@ -103,9 +107,9 @@ class _BaseTuner:
 
     def _get_booster_best_score(self, booster: "lgb.Booster") -> float:
         metric = self._get_metric_for_objective()
-        valid_sets: list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset" | None = (
-            self.lgbm_kwargs.get("valid_sets")
-        )
+        valid_sets: (
+            list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset" | None
+        ) = self.lgbm_kwargs.get("valid_sets")
 
         if self.lgbm_kwargs.get("valid_names") is not None:
             if isinstance(self.lgbm_kwargs["valid_names"], str):
@@ -185,9 +189,9 @@ class _OptunaObjective(_BaseTuner):
 
         self.trial_count = 0
         self.best_score = best_score
-        self.best_booster_with_trial_number: tuple["lgb.Booster" | "lgb.CVBooster", int] | None = (
-            None
-        )
+        self.best_booster_with_trial_number: (
+            tuple["lgb.Booster" | "lgb.CVBooster", int] | None
+        ) = None
         self.step_name = step_name
         self.model_dir = model_dir
 
@@ -204,25 +208,39 @@ class _OptunaObjective(_BaseTuner):
 
     def _preprocess(self, trial: optuna.trial.Trial) -> None:
         if self.pbar is not None:
-            self.pbar.set_description(self.pbar_fmt.format(self.step_name, self.best_score))
+            self.pbar.set_description(
+                self.pbar_fmt.format(self.step_name, self.best_score)
+            )
 
         if "lambda_l1" in self.target_param_names:
-            self.lgbm_params["lambda_l1"] = trial.suggest_float("lambda_l1", 1e-8, 10.0, log=True)
+            self.lgbm_params["lambda_l1"] = trial.suggest_float(
+                "lambda_l1", 1e-8, 10.0, log=True
+            )
         if "lambda_l2" in self.target_param_names:
-            self.lgbm_params["lambda_l2"] = trial.suggest_float("lambda_l2", 1e-8, 10.0, log=True)
+            self.lgbm_params["lambda_l2"] = trial.suggest_float(
+                "lambda_l2", 1e-8, 10.0, log=True
+            )
         if "num_leaves" in self.target_param_names:
             tree_depth = self.lgbm_params.get("max_depth", _DEFAULT_TUNER_TREE_DEPTH)
-            max_num_leaves = 2**tree_depth if tree_depth > 0 else 2**_DEFAULT_TUNER_TREE_DEPTH
-            self.lgbm_params["num_leaves"] = trial.suggest_int("num_leaves", 2, max_num_leaves)
+            max_num_leaves = (
+                2**tree_depth if tree_depth > 0 else 2**_DEFAULT_TUNER_TREE_DEPTH
+            )
+            self.lgbm_params["num_leaves"] = trial.suggest_int(
+                "num_leaves", 2, max_num_leaves
+            )
         if "feature_fraction" in self.target_param_names:
             # `GridSampler` is used for sampling feature_fraction value.
             # The value 1.0 for the hyperparameter is always sampled.
-            param_value = min(trial.suggest_float("feature_fraction", 0.4, 1.0 + _EPS), 1.0)
+            param_value = min(
+                trial.suggest_float("feature_fraction", 0.4, 1.0 + _EPS), 1.0
+            )
             self.lgbm_params["feature_fraction"] = param_value
         if "bagging_fraction" in self.target_param_names:
             # `TPESampler` is used for sampling bagging_fraction value.
             # The value 1.0 for the hyperparameter might by sampled.
-            param_value = min(trial.suggest_float("bagging_fraction", 0.4, 1.0 + _EPS), 1.0)
+            param_value = min(
+                trial.suggest_float("bagging_fraction", 0.4, 1.0 + _EPS), 1.0
+            )
             self.lgbm_params["bagging_fraction"] = param_value
         if "bagging_freq" in self.target_param_names:
             self.lgbm_params["bagging_freq"] = trial.suggest_int("bagging_freq", 1, 7)
@@ -233,7 +251,8 @@ class _OptunaObjective(_BaseTuner):
             self.lgbm_params["min_child_samples"] = param_value
 
     def _copy_valid_sets(
-        self, valid_sets: list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset"
+        self,
+        valid_sets: list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset",
     ) -> list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset":
         if isinstance(valid_sets, list):
             return [copy.copy(d) for d in valid_sets]
@@ -269,17 +288,26 @@ class _OptunaObjective(_BaseTuner):
         return val_score
 
     def _postprocess(
-        self, trial: optuna.trial.Trial, elapsed_secs: float, average_iteration_time: float
+        self,
+        trial: optuna.trial.Trial,
+        elapsed_secs: float,
+        average_iteration_time: float,
     ) -> None:
         if self.pbar is not None:
-            self.pbar.set_description(self.pbar_fmt.format(self.step_name, self.best_score))
+            self.pbar.set_description(
+                self.pbar_fmt.format(self.step_name, self.best_score)
+            )
             self.pbar.update(1)
 
-        trial.storage.set_trial_system_attr(trial._trial_id, _ELAPSED_SECS_KEY, elapsed_secs)
+        trial.storage.set_trial_system_attr(
+            trial._trial_id, _ELAPSED_SECS_KEY, elapsed_secs
+        )
         trial.storage.set_trial_system_attr(
             trial._trial_id, _AVERAGE_ITERATION_TIME_KEY, average_iteration_time
         )
-        trial.storage.set_trial_system_attr(trial._trial_id, _STEP_NAME_KEY, self.step_name)
+        trial.storage.set_trial_system_attr(
+            trial._trial_id, _STEP_NAME_KEY, self.step_name
+        )
         lgbm_params = copy.deepcopy(self.lgbm_params)
         custom_objective = _get_custom_objective(lgbm_params)
         if custom_objective is not None:
@@ -290,6 +318,9 @@ class _OptunaObjective(_BaseTuner):
                 if hasattr(custom_objective, "__name__")
                 else str(custom_objective)
             )
+
+        if isinstance(lgbm_params.get("is_unbalance"), np.bool_):
+            lgbm_params["is_unbalance"] = bool(lgbm_params["is_unbalance"])
         trial.storage.set_trial_system_attr(
             trial._trial_id, _LGBM_PARAMS_KEY, json.dumps(lgbm_params)
         )
@@ -320,7 +351,9 @@ class _OptunaObjectiveCV(_OptunaObjective):
             pbar=pbar,
         )
 
-    def _get_cv_scores(self, cv_results: dict[str, list[float] | "lgb.CVBooster"]) -> list[float]:
+    def _get_cv_scores(
+        self, cv_results: dict[str, list[float] | "lgb.CVBooster"]
+    ) -> list[float]:
         metric = self._get_metric_for_objective()
         metric_key = f"{metric}-mean"
         # The prefix "valid " is added to metric name since LightGBM v4.0.0.
@@ -358,7 +391,10 @@ class _OptunaObjectiveCV(_OptunaObjective):
             self.best_score = val_score
             if self.lgbm_kwargs.get("return_cvbooster"):
                 assert not isinstance(cv_results["cvbooster"], list)
-                self.best_booster_with_trial_number = (cv_results["cvbooster"], trial.number)
+                self.best_booster_with_trial_number = (
+                    cv_results["cvbooster"],
+                    trial.number,
+                )
 
         self._postprocess(trial, elapsed_secs, average_iteration_time)
 
@@ -415,13 +451,17 @@ class _LightGBMBaseTuner(_BaseTuner):
             warnings.warn(deprecated_arg_warning.format(deprecated_arg="feature_name"))
             kwargs["feature_name"] = feature_name
         if categorical_feature:
-            warnings.warn(deprecated_arg_warning.format(deprecated_arg="categorical_feature"))
+            warnings.warn(
+                deprecated_arg_warning.format(deprecated_arg="categorical_feature")
+            )
             kwargs["categorical_feature"] = categorical_feature
 
         self._parse_args(*args, **kwargs)
         self._start_time: float | None = None
         self._optuna_callbacks = optuna_callbacks
-        self._best_booster_with_trial_number: tuple[lgb.Booster | lgb.CVBooster, int] | None = None
+        self._best_booster_with_trial_number: (
+            tuple[lgb.Booster | lgb.CVBooster, int] | None
+        ) = None
         self._model_dir = model_dir
         self._optuna_seed = optuna_seed
         self._custom_objective = _get_custom_objective(params)
@@ -534,7 +574,9 @@ class _LightGBMBaseTuner(_BaseTuner):
     def tune_feature_fraction(self, n_trials: int = 7) -> None:
         param_name = "feature_fraction"
         param_values = cast(list, np.linspace(0.4, 1.0, n_trials).tolist())
-        sampler = optuna.samplers.GridSampler({param_name: param_values}, seed=self._optuna_seed)
+        sampler = optuna.samplers.GridSampler(
+            {param_name: param_values}, seed=self._optuna_seed
+        )
         self._tune_params([param_name], len(param_values), sampler, "feature_fraction")
 
     def tune_num_leaves(self, n_trials: int = 20) -> None:
@@ -564,8 +606,12 @@ class _LightGBMBaseTuner(_BaseTuner):
         )
         param_values = [val for val in param_values if val >= 0.4 and val <= 1.0]
 
-        sampler = optuna.samplers.GridSampler({param_name: param_values}, seed=self._optuna_seed)
-        self._tune_params([param_name], len(param_values), sampler, "feature_fraction_stage2")
+        sampler = optuna.samplers.GridSampler(
+            {param_name: param_values}, seed=self._optuna_seed
+        )
+        self._tune_params(
+            [param_name], len(param_values), sampler, "feature_fraction_stage2"
+        )
 
     def tune_regularization_factors(self, n_trials: int = 20) -> None:
         self._tune_params(
@@ -579,7 +625,9 @@ class _LightGBMBaseTuner(_BaseTuner):
         param_name = "min_child_samples"
         param_values = [5, 10, 25, 50, 100]
 
-        sampler = optuna.samplers.GridSampler({param_name: param_values}, seed=self._optuna_seed)
+        sampler = optuna.samplers.GridSampler(
+            {param_name: param_values}, seed=self._optuna_seed
+        )
         self._tune_params([param_name], len(param_values), sampler, "min_child_samples")
 
     def _tune_params(
@@ -602,7 +650,9 @@ class _LightGBMBaseTuner(_BaseTuner):
         if self.train_subset is not None:
             train_set = self.train_subset
 
-        objective = self._create_objective(target_param_names, train_set, step_name, pbar)
+        objective = self._create_objective(
+            target_param_names, train_set, step_name, pbar
+        )
 
         study = self._create_stepwise_study(self.study, step_name)
         study.sampler = sampler
@@ -617,7 +667,9 @@ class _LightGBMBaseTuner(_BaseTuner):
             self._start_time = time.time()
 
         if self.auto_options["time_budget"] is not None:
-            _timeout = self.auto_options["time_budget"] - (time.time() - self._start_time)
+            _timeout = self.auto_options["time_budget"] - (
+                time.time() - self._start_time
+            )
         else:
             _timeout = None
         if _n_trials > 0:
@@ -634,7 +686,9 @@ class _LightGBMBaseTuner(_BaseTuner):
             del pbar
 
         if objective.best_booster_with_trial_number is not None:
-            self._best_booster_with_trial_number = objective.best_booster_with_trial_number
+            self._best_booster_with_trial_number = (
+                objective.best_booster_with_trial_number
+            )
 
         return objective
 
@@ -668,7 +722,11 @@ class _LightGBMBaseTuner(_BaseTuner):
                 states: Container[TrialState] | None = None,
             ) -> list[optuna.trial.FrozenTrial]:
                 trials = super()._get_trials(deepcopy=deepcopy, states=states)
-                return [t for t in trials if t.system_attrs.get(_STEP_NAME_KEY) == self._step_name]
+                return [
+                    t
+                    for t in trials
+                    if t.system_attrs.get(_STEP_NAME_KEY) == self._step_name
+                ]
 
             @property
             def best_trial(self) -> optuna.trial.FrozenTrial:
@@ -679,7 +737,9 @@ class _LightGBMBaseTuner(_BaseTuner):
                 """
 
                 trials = self.get_trials(deepcopy=False)
-                trials = [t for t in trials if t.state is optuna.trial.TrialState.COMPLETE]
+                trials = [
+                    t for t in trials if t.state is optuna.trial.TrialState.COMPLETE
+                ]
 
                 if len(trials) == 0:
                     raise ValueError("No trials are completed yet.")
@@ -771,7 +831,9 @@ class LightGBMTuner(_LightGBMBaseTuner):
         params: dict[str, Any],
         train_set: "lgb.Dataset",
         num_boost_round: int = 1000,
-        valid_sets: list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset" | None = None,
+        valid_sets: (
+            list["lgb.Dataset"] | tuple["lgb.Dataset", ...] | "lgb.Dataset" | None
+        ) = None,
         valid_names: Any | None = None,
         feval: Callable[..., Any] | None = None,
         feature_name: str | None = None,
@@ -843,7 +905,9 @@ class LightGBMTuner(_LightGBMBaseTuner):
             if self._best_booster_with_trial_number[1] == self.study.best_trial.number:
                 return self._best_booster_with_trial_number[0]
         if len(self.study.trials) == 0:
-            raise ValueError("The best booster is not available because no trials completed.")
+            raise ValueError(
+                "The best booster is not available because no trials completed."
+            )
 
         # The best booster exists, but this instance does not have it.
         # This may be due to resuming or parallelization.
@@ -1036,10 +1100,14 @@ class LightGBMTunerCV(_LightGBMBaseTuner):
             )
         if self._best_booster_with_trial_number is not None:
             if self._best_booster_with_trial_number[1] == self.study.best_trial.number:
-                assert isinstance(self._best_booster_with_trial_number[0], lgb.CVBooster)
+                assert isinstance(
+                    self._best_booster_with_trial_number[0], lgb.CVBooster
+                )
                 return self._best_booster_with_trial_number[0]
         if len(self.study.trials) == 0:
-            raise ValueError("The best booster is not available because no trials completed.")
+            raise ValueError(
+                "The best booster is not available because no trials completed."
+            )
 
         # The best booster exists, but this instance does not have it.
         # This may be due to resuming or parallelization.
